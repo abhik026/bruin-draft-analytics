@@ -1,0 +1,13 @@
+numpy
+pandas>=2.0
+pyarrow
+polars
+scipy
+statsmodels
+scikit-learn
+matplotlib
+seaborn
+nflreadpy
+requests
+python-dotenv
+jupyterlab
