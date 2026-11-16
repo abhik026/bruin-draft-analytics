@@ -1,0 +1,43 @@
+season,pick,player_name,pos_label,college,height,weight_lb,pfr_id,pos_group
+2010,138,Walter McFadden,DB,Auburn,70,180,McFaWa99,CB
+2010,148,Robert Johnson,DB,Utah,74,206,JohnRo99,S
+2010,171,Shann Schillinger,DB,Montana,72,200,SchiSh99,S
+2010,201,Jorrick Calvin,DB,Troy,71,184,CalvJo99,CB
+2010,202,Jordan Pugh,DB,Texas A&M,71,210,PughJo99,S
+2010,211,Marquis Johnson,DB,Alabama,71,205,JohnMa99,CB
+2010,215,Jeremy Ware,DB,Michigan St.,70,185,WareJe99,CB
+2010,223,R.J. Stanford,DB,Utah,70,187,StanR.00,CB
+2010,224,Phillip Adams,DB,South Carolina St.,71,195,AdamPh00,CB
+2010,249,Robert McClain,DB,Connecticut,69,195,McClRo98,CB
+2011,121,Chris Prosinski,DB,Wyoming,73,213,ProsCh00,S
+2011,147,Rod Issac,DB,Middle Tenn. St.,71,196,IssaRo00,CB
+2011,203,Zachary Williams,OL,Washington St.,,,WillZa00,IOL
+2011,207,Korey Lindsey,DB,Southern Illinois,70,194,LindKo00,CB
+2011,216,Mikail Baker,DB,Baylor,72,200,BakeMi00,CB
+2011,219,Malcolm Williams,DB,TCU,71,200,WillMa01,CB
+2011,222,Anthony Gaitor,DB,Florida International,70,182,GaitAn00,CB
+2011,250,Curtis Holcomb,DB,Florida A&M,70,190,HolcCu00,CB
+2011,251,Tommie Campbell,DB,Pittsburgh,75,198,CampTo00,CB
+2012,148,Chris Greenwood,DB,Albion,73,197,GreeCh01,CB
+2012,174,Keith Tandy,DB,West Virginia,70,205,TandKe00,S
+2012,184,Isaiah Frey,DB,Nevada,72,190,FreyIs00,CB
+2012,195,Nick Mondek,OL,Purdue,,,MondNi00,OT
+2012,197,Nate Ebner,DB,Ohio St.,72,215,EbneNa00,S
+2012,199,Jason Slowey,OL,Western Oregon,,,SlowJa00,IOL
+2012,203,Robert Griffin,OL,Baylor,,,GrifRo03,IOL
+2012,213,Richard Crawford,DB,SMU,71,192,CrawRi00,CB
+2012,217,Jordan Bernstine,DB,Iowa,,,BernJo00,S
+2012,220,Greg McCoy,DB,TCU,,,McCoGr00,CB
+2013,143,Jonathan Meeks,DB,Clemson,72,209,MeekJo01,S
+2013,152,Cooper Taylor,DB,Richmond,76,228,TaylCo01,S
+2013,208,Jeremy Harris,DB,New Mexico St.,74,185,HarrJe02,CB
+2013,250,Don Jones,DB,Arkansas St.,71,195,JoneDo02,S
+2013,252,Marcus Cooper,DB,Rutgers,74,197,CoopMa00,CB
+2014,125,Walt Aikens,DB,Liberty,73,200,AikeWa00,S
+2014,157,Shaquille Richardson,DB,Arizona,72,194,RichSh01,CB
+2014,208,Eric Pinkins,DB,San Diego St.,75,230,PinkEr00,S
+2014,241,C.B. Bryant,DB,Ohio St.,70,198,BryaC.00,S
+2015,248,Ryan Murphy,DB,Oregon St.,72,214,MurpRy00,S
+2015,252,Josh Furman,DB,Oklahoma St.,,,FurmJo00,S
+2016,173,Trey Caldwell,DB,La-Monroe,69,185,CaldTr00,CB
+2022,204,Theo Jackson,DB,Tennessee,73,205,JackTh00,S
