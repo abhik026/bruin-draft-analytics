@@ -6,7 +6,7 @@ What college production data we have for drafted players, how complete it is by 
 
 - **Offense is well covered.** QB/RB/WR/TE have relevant final-season stats for 82–94% of the 2010–16 classes and 92–97% of the 2017–22 classes.
 - **OT and IOL have no usable college production.** Their models will have to rely on size, combine, and pick slot.
-- **CFBD has no defensive stats (tackles, sacks, TFL, hurries, PD) before the 2016 season.** EDGE and IDL have 0% coverage for the 2010–16 draft classes. LB, CB, and S are covered only by interceptions for those classes. This is the biggest issue in the data.
+- **CFBD has no defensive stats (tackles, sacks, TFL, hurries, PD) before the 2016 season.** EDGE and IDL have 0% coverage for the 2010–16 draft classes. LB, CB, and S are covered only by interceptions for those classes. This is the biggest issue in the data. ESPN play-by-play data can partly fill it (sacks, PBU, INT, forced fumbles, but no tackles or TFL). See [Source feasibility check](#source-feasibility-check).
 - **FCS and lower-division players are mostly missing** (50–88% by position), and the stats that do exist look partial.
 - **Raw counting stats aren't comparable across school levels or seasons** (G5 totals run higher than Power, and 2020 was a short season). Recommendation: standardize within season × position, and add school level as its own feature.
 - The team needs to make a few decisions before Layer 2. See [Known issues and open decisions](#known-issues-and-open-decisions).
@@ -214,7 +214,7 @@ Career totals are short for the 2010–11 classes, since the data starts with th
 1. **Pre-2016 defenders.** Options:
    - (a) fit defensive Layer 2 models on the 2017–22 classes only
    - (b) use combine and pick slot only for earlier defenders
-   - (c) add another source for pre-2016 defensive stats (see the feasibility check below)
+   - (c) add ESPN play-by-play defensive events (sacks, PBU, INT, FF; no tackles or TFL) from sportsdataverse. Validated against CFBD, and it covers 91–96% of early defenders. See the feasibility check below.
 2. **OLB→EDGE split**, before EDGE results are interpreted.
 3. **Final season:** keep draft year − 1, or switch to the last season played.
 4. **FCS players:** treat their college stats as missing (recommended), or keep them with a level flag.
@@ -222,4 +222,46 @@ Career totals are short for the 2010–11 classes, since the data starts with th
 
 ## Source feasibility check
 
-*To be added: a spot-check of pre-2016 drafted defenders against one alternative source.*
+Can another source fill the pre-2016 defensive gap? The checks are in the notebook section "Pre-2016 defensive fill (ESPN play-by-play)".
+
+### Ruled out
+
+- **Sports Reference (College Football Reference).** Its terms prohibit automated access ("scripts, bots, scrapers, data miners") and using its content for "supporting machine learning methods used to predict, classify, label, or score inputs into the models." Layer 2 is exactly that, so it can't be used without written permission.
+- **cfbfastR's `cfbd_*` functions.** They wrap the same CFBD API we already use, so they have the same gap.
+- **ESPN box scores** (cfbfastR `load_espn_cfb_player_box`). These have no defensive category in 2013 but do in 2018, so they have the same gap. CFBD likely sources its box scores from ESPN.
+
+### Usable: ESPN play-by-play defensive events
+
+sportsdataverse (the project behind cfbfastR) publishes `espn_cfb_adv_defensive_players`: per-player, per-game counts of **sacks, pass breakups, interceptions, and forced fumbles**, parsed from ESPN play-by-play text. It covers 2004 onward, as parquet files read directly with pandas (no R needed).
+
+**What it lacks:**
+- **No tackles before 2014, and no TFL or QB hurries in any year.** (A separate `espn_cfb_adv_tackles` release covers tackles from 2014 on.)
+- **2013 sacks are broken:** 18 in the whole season, compared with about 3,000–3,500 in the seasons around it. Pass breakups and forced fumbles look normal in 2013. 2013 is the final season for the 2014 class.
+- **No player ID.** Players are matched by school (`picks.collegeId` is ESPN's team id) plus last name + first initial. Exact names miss nicknames (Chris/Christopher) and some names carry junk team prefixes. 20 drafted defenders share a school + key with another pick, so a few matches could be wrong.
+
+**Validation.** For 2016–17, where CFBD has defense, ESPN and CFBD sacks for the same 725 drafted player-seasons agree exactly 78% of the time and are within one sack 97% of the time. The correlation is 0.96, and the average difference is about 0. That's slightly noisy but not biased.
+
+**Coverage for the 2010–16 classes** (share with an ESPN row in any pre-draft season / in the final season):
+
+| Group | Any season | Final season | Before the fill (`def_any`) |
+|---|---|---|---|
+| EDGE | .956 | .899 | 0 |
+| IDL | .912 | .845 | 0 |
+| LB | .962 | .949 | 0 |
+| CB | .960 | .884 | 0 |
+| S | .948 | .896 | 0 |
+
+- **Power and G5 defenders match 99% of the time. FCS/Other only matches 57%** (93 players).
+- **The 2014 class is the weak spot:** 73% final-season coverage, and its final-season sacks are unusable.
+- **Spot checks look right:** Suh 2009 (12.5 sacks), Von Miller 2009 (16), Clowney 2012 (14).
+
+**License.** The sportsdataverse data repo is MIT-licensed for code, and its README marks the data CC BY 4.0, which requires attribution. The underlying data comes from ESPN, and ESPN's own terms haven't been reviewed. Someone should check them before this goes into the final pipeline.
+
+### Recommendation
+
+This source makes option (c) realistic for **sacks, pass breakups, INTs, and forced fumbles** for the 2010–16 classes (except 2013 sacks). It does **not** recover tackles or TFL. If the team adopts it:
+- Pre-2016 defensive features would be a smaller set than post-2016 ones (sacks, PBU, INT, FF), so models should only use those four stats across all years, or fit the eras separately.
+- 2013 sacks should be set to missing, not 0.
+- The pull would go into `src/data/pull_college.py` as a cached download, and the matching logic would go into `src/`.
+
+Source: [sportsdataverse-data](https://github.com/sportsdataverse/sportsdataverse-data), release `espn_cfb_adv_defensive_players` (CC BY 4.0).
