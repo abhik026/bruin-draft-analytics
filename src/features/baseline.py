@@ -6,6 +6,10 @@ Definitions used by the whole project:
   pick, fit on ALL players regardless of position. It answers "what does this draft
   slot typically return?" A separate curve per position would force every position's
   average surplus to ~0 by construction, so positions could not be ranked.
+- **Inputs (project convention):** the master table (K/P/LS already dropped), mature
+  classes only (`mature_classes()`, 2010-2018), outcome from `get_outcome()` (w_av,
+  never-played = 0). The functions here do not filter classes themselves; pass the
+  rows you want the curve fit on.
 - **Smoother:** LOWESS (local weighted straight-line fits) with no robustness
   iterations (`it=0`), so the curve tracks the MEAN outcome at each pick, stars
   included. `frac=0.1` (a window of ~25 picks) was chosen in
@@ -16,7 +20,10 @@ Definitions used by the whole project:
 
 Typical use (reproduces the notebook's heatmap inputs)::
 
-    from src.features.baseline import fit_baseline, add_surplus
+    from src.features.outcome import get_outcome, mature_classes
+    from src.features.baseline import fit_baseline, add_surplus, surplus_table
+    df = mature_classes(master).copy()     # master.parquet, classes 2010-2018
+    df["outcome"] = get_outcome(df)
     baseline = fit_baseline(df)            # df: one row per drafted player
     df = add_surplus(df, baseline)         # adds `expected` and `surplus`
     table = surplus_table(df)              # position x pick tier: n, mean, 95% CI
@@ -32,13 +39,15 @@ def last_full_pick(df: pd.DataFrame, pick_col: str = "pick",
                    class_col: str = "season") -> int:
     """Return the last pick number that every draft class in `df` reaches.
 
-    Picks 1..N appear once per class; draft length varies (compensatory picks), so
-    beyond N some classes have no player. Example: classes 2010-2022 -> 253.
+    Draft length varies by class (compensatory picks), so this is the smallest of the
+    classes' last picks. Example: classes 2010-2018 (or 2010-2022) -> 253.
+
+    Computed from each class's LAST pick, not from players per pick: the master table
+    drops K/P/LS without renumbering picks, so some picks inside the draft have fewer
+    than one player per class (e.g. pick 59 in 2010-2018). Counting players per pick
+    would wrongly end the curve there.
     """
-    n_classes = df[class_col].nunique()
-    n_per_pick = df.groupby(pick_col).size()
-    short = n_per_pick[n_per_pick < n_classes].index
-    return int(short.min() - 1) if len(short) else int(n_per_pick.index.max())
+    return int(df.groupby(class_col)[pick_col].max().min())
 
 
 def fit_baseline(df: pd.DataFrame, outcome_col: str = "outcome",
