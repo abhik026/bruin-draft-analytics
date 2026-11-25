@@ -18,7 +18,7 @@ if __name__ == "__main__":
     elif os.environ.get("CFBD_API_KEY"):
         from src.data.pull_college import pull_year
         from src.utils import CLASS_MAX, CLASS_MIN
-        for yr in range(CLASS_MIN - 1, CLASS_MAX + 1):
+        for yr in range(CLASS_MIN - 3, CLASS_MAX):
             pull_year("player_stats", yr)
             pull_year("draft_picks", yr)
     else:

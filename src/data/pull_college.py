@@ -64,7 +64,7 @@ def pull_year(kind: str, year: int, force: bool = False) -> pd.DataFrame | None:
 if __name__ == "__main__":
     load_dotenv()
     ap = argparse.ArgumentParser()
-    ap.add_argument("--start", type=int, default=CLASS_MIN - 1)  # college season before draft
+    ap.add_argument("--start", type=int, default=CLASS_MIN - 3)  # 3 seasons of history for the first class
     ap.add_argument("--end", type=int, default=CLASS_MAX)
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--check", action="store_true", help="print row counts per season only")

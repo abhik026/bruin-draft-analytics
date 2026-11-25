@@ -65,3 +65,34 @@ def add_career_length(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     out["seasons_possible"] = (LAST_COMPLETE_SEASON - out["season"] + 1).clip(lower=0)
     return out
+
+
+ROOKIE_WINDOW = 4                 # seasons counted: the rookie contract
+ROOKIE_CLASS_MIN, ROOKIE_CLASS_MAX = 2013, 2022   # snap counts start 2013; 2022 has 4 full seasons by 2025
+
+
+def get_rookie_window_outcome(df: pd.DataFrame, snaps: pd.DataFrame,
+                              window: int = ROOKIE_WINDOW) -> pd.Series:
+    """Full-time-equivalent starter seasons in the first `window` NFL seasons (0 to window).
+
+    Per season: mean over the team's regular-season games of the player's snap share
+    (offense or defense; missed games count 0). Summed over the first `window` seasons.
+    Needs `pfr_id` in df and nflverse snap_counts (2013+). Why this exists:
+      - it is the same length for every class, so no class is censored (w_av needs 2010-2018);
+      - it measures what the drafting team gets on the cheap rookie deal;
+      - playing time is not position-scaled the way AV is (AV credits OL/QB by formula).
+    Valid for classes ROOKIE_CLASS_MIN..ROOKIE_CLASS_MAX only (NaN outside).
+    """
+    s = snaps[snaps["game_type"] == "REG"].copy()
+    s["pct"] = s["offense_pct"].where(s["offense_pct"] > 0, s["defense_pct"]).fillna(0)
+    games = s.groupby(["season", "team"])["game_id"].nunique().rename("team_games").reset_index()
+    ps = (s.groupby(["pfr_player_id", "season", "team"])["pct"].sum().rename("pct_sum")
+            .reset_index().merge(games, on=["season", "team"]))
+    ps["fte"] = ps["pct_sum"] / ps["team_games"]
+    ps = ps.groupby(["pfr_player_id", "season"], as_index=False)["fte"].sum()
+    x = df[["pfr_id", "season"]].reset_index().merge(
+        ps, left_on="pfr_id", right_on="pfr_player_id", how="left", suffixes=("", "_snap"))
+    x = x[(x["season_snap"] >= x["season"]) & (x["season_snap"] < x["season"] + window)]
+    total = x.groupby("index")["fte"].sum().clip(upper=window)
+    out = df.index.to_series().map(total).fillna(0.0).astype(float).rename("rookie_fte")
+    return out.where(df["season"].between(ROOKIE_CLASS_MIN, ROOKIE_CLASS_MAX))

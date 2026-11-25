@@ -49,10 +49,14 @@ def build_nfl_side() -> pd.DataFrame:
     # (w_av, dr_av, games, seasons_started etc. keep their names: get_outcome() uses them.)
     df = df.rename(columns={c: f"nfl_{c}" for c in NFL_STAT_COLS if c in df.columns})
  
-    pl = players[["gsis_id", "position"]].rename(columns={"position": "pos_players"})
-    df = df.merge(pl.drop_duplicates("gsis_id"), on="gsis_id", how="left")
+    pl = (players[players["gsis_id"].notna()][["gsis_id", "position"]]
+          .rename(columns={"position": "pos_players"}))
+    df = df.merge(pl.drop_duplicates("gsis_id"), on="gsis_id", how="left", validate="m:1")
     df["pos_raw"] = df["pos_players"].fillna(df["pos_draft"])
  
+    # BUGFIX: combine has ~1,500 rows with a blank pfr_id. pandas joins NaN to NaN, so every
+    # draft pick without a pfr_id used to inherit one random combine row (10 players became "TE").
+    combine = combine[combine["pfr_id"].notna()]
     cb = (combine.assign(_n=combine.notna().sum(axis=1))
                  .sort_values("_n", ascending=False)
                  .drop_duplicates("pfr_id"))
@@ -63,9 +67,20 @@ def build_nfl_side() -> pd.DataFrame:
     df = df.merge(cb[keep], on="pfr_id", how="left")
     df["has_combine"] = df["has_combine"].fillna(False).astype(bool)
  
-    df["pos_group"] = df["pos_players"].map(to_pos_group)
-    for col in ["pos_combine", "pos_draft"]:
-        df["pos_group"] = df["pos_group"].fillna(df[col].map(to_pos_group))
+    # Position AT THE DRAFT: combine label, then draft-table label, and only then the players
+    # table. The players table holds the position a player ENDED UP at (CB->S, OT->G, DT->DE),
+    # which depends on how his career went (leakage). See docs/REVIEW.md.
+    df["pos_group"] = None
+    df["position_source"] = None
+    for col in ["pos_combine", "pos_draft", "pos_players"]:
+        g = df[col].map(to_pos_group)
+        use = df["pos_group"].isna() & g.notna()
+        df.loc[use, "pos_group"] = g[use]
+        df.loc[use, "position_source"] = col
+    fb_label = df[["pos_combine", "pos_draft", "pos_players"]].apply(
+        lambda c: c.astype("string").str.upper()).eq("FB").any(axis=1)
+    df["is_fullback"] = fb_label & df["pos_group"].isna()   # kept in the pick curve, not in position tables
+    df["pos_group_nfl"] = df["pos_players"].map(to_pos_group)   # kept for sensitivity checks
  
     df["name_clean"] = df["player_name"].map(clean_name)
     df["pick_tier"] = pick_tier(df["pick"])
@@ -91,7 +106,9 @@ def apply_position_cleanup(df: pd.DataFrame) -> pd.DataFrame:
             raise ValueError(f"position_overrides.csv has invalid pos_group values: {bad}")
         ov = ov.rename(columns={"pos_group": "pos_override"})
         print(f"[info] position overrides applied: {len(ov)} rows from {OVERRIDES_PATH.name}")
-        df = df.merge(ov, on=["season", "pick"], how="left")
+        if ov.duplicated(["season", "pick"]).any():
+            raise ValueError("position_overrides.csv has duplicate (season, pick) rows")
+        df = df.merge(ov, on=["season", "pick"], how="left", validate="m:1")
         df["pos_group"] = df["pos_group"].fillna(df["pos_override"])
         df = df.drop(columns="pos_override")
     return df
@@ -141,6 +158,9 @@ def attach_college_ids(df: pd.DataFrame, picks: pd.DataFrame) -> pd.DataFrame:
     if "cfbd_school" not in p:
         p["cfbd_school"] = pd.NA
     p["college_athlete_id"] = _id_str(p["college_athlete_id"])
+    # BUGFIX: CFBD uses negative ids for "not linked to a college record". They used to count
+    # as matches (inflating match rate) and blocked the name fallback. Treat them as missing.
+    p.loc[pd.to_numeric(p["college_athlete_id"], errors="coerce") <= 0, "college_athlete_id"] = pd.NA
     p["name_clean_cfbd"] = p["cfbd_name"].map(clean_name)
     p = p[["season", "pick", "college_athlete_id", "cfbd_name", "cfbd_school",
            "name_clean_cfbd"]].dropna(subset=["college_athlete_id"])
@@ -160,7 +180,8 @@ def attach_college_ids(df: pd.DataFrame, picks: pd.DataFrame) -> pd.DataFrame:
         how="inner", suffixes=("", "_p"))
     fb = fb.drop_duplicates(["season", "pick"]).set_index(["season", "pick"])
  
-    out = df.merge(m1.drop(columns="name_clean"), on=["season", "pick"], how="left")
+    out = df.merge(m1.drop(columns="name_clean"), on=["season", "pick"], how="left",
+                   validate="1:1")
     idx = pd.MultiIndex.from_frame(out[["season", "pick"]])
     need_fb = out["college_athlete_id"].isna() & idx.isin(fb.index)
     for col in ["college_athlete_id", "cfbd_name", "cfbd_school"]:
@@ -219,7 +240,9 @@ def attach_college(df: pd.DataFrame) -> pd.DataFrame:
         stat_cols = [c for c in feats.columns
                      if c not in {"college_athlete_id", "college_final_season", "college_team_final"}]
         df = df.merge(feats, on="college_athlete_id", how="left")
-        df["has_college_stats"] = df[stat_cols].notna().any(axis=1)
+        # BUGFIX: CFBD writes zero-filled placeholder rows (OL "tackles" etc). Only nonzero
+        # values count as real coverage (matches reports/college_feature_audit.md).
+        df["has_college_stats"] = (df[stat_cols].fillna(0) != 0).any(axis=1)
     return df
  
  
@@ -256,6 +279,7 @@ if __name__ == "__main__":
     m.to_parquet(PROCESSED / "master.parquet", index=False)
     print(f"master: {len(m):,} rows, classes {m.season.min()}-{m.season.max()}")
     print(f"combine match: {m.has_combine.mean():.1%} | outcome missing: {m.outcome.isna().mean():.1%}")
-    print(f"position group unresolved: {m.pos_group.isna().sum()} rows (fill src/data/position_overrides.csv)")
+    unres = (m.pos_group.isna() & ~m.is_fullback).sum()
+    print(f"position group unresolved: {unres} rows (fill src/data/position_overrides.csv); fullbacks: {m.is_fullback.sum()}")
     print(f"college id match: {m.has_college_match.mean():.1%}")
     print(m.pos_group.value_counts().to_string())
