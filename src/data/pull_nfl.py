@@ -14,6 +14,7 @@ TABLES = {
     "draft_picks": nfl.load_draft_picks,
     "combine": nfl.load_combine,
     "players": nfl.load_players,
+    "snap_counts": lambda: nfl.load_snap_counts(seasons=list(range(2013, 2026))),  # rookie-window outcome
     "contracts": nfl.load_contracts,   # used by Member C to test a contract-based outcome
 }
 

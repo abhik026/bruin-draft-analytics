@@ -181,3 +181,49 @@ def surplus_table(df: pd.DataFrame, row: str = "pos_group", col: str = "pick_tie
     out["small"] = out["n"] < min_n
     out["clear"] = ~out["small"] & ((out["ci_low"] > 0) | (out["ci_high"] < 0))
     return out
+
+
+# ----------------------------------------------------------------------------- inference helpers
+def shrunk_position_effects(df: pd.DataFrame, pos_col: str = "pos_group",
+                            surplus_col: str = "surplus", k: float = 50.0,
+                            group_col: str | None = None) -> pd.DataFrame:
+    """Empirical-Bayes style position effects: mean surplus * n / (n + k).
+
+    Small groups are pulled toward 0 so a position with n=8 cannot top the ranking on luck.
+    k=50 was best out-of-sample in the review (see docs/REVIEW.md). With group_col (e.g.
+    pick_tier) effects are estimated per group, shrinking toward that group's 0.
+    """
+    keys = [pos_col] if group_col is None else [group_col, pos_col]
+    g = df.dropna(subset=keys + [surplus_col]).groupby(keys, observed=True)[surplus_col]
+    out = g.agg(n="size", raw_mean="mean")
+    out["shrunk"] = out["raw_mean"] * out["n"] / (out["n"] + k)
+    return out
+
+
+def position_permutation_test(df: pd.DataFrame, pos_col: str = "pos_group",
+                              strata_col: str = "pick_tier", surplus_col: str = "surplus",
+                              n_perm: int = 2000, seed: int = 0) -> dict:
+    """Do positions differ in surplus more than chance? Shuffles position labels WITHIN strata.
+
+    Statistic: n-weighted mean of squared position means. Returns obs, null mean, p-value.
+    Use this before reading any heatmap: it is the multiple-comparison guard the cell
+    stars lack (about 5% of cells are starred under the null).
+    """
+    d = df.dropna(subset=[pos_col, strata_col, surplus_col]).reset_index(drop=True)
+    rng = np.random.default_rng(seed)
+
+    def stat(labels):
+        g = d[surplus_col].groupby(labels).agg(["mean", "size"])
+        return float((g["size"] * g["mean"] ** 2).sum() / len(d))
+
+    obs = stat(d[pos_col].to_numpy())
+    idx_by = [np.flatnonzero(d[strata_col].to_numpy() == s) for s in d[strata_col].unique()]
+    base = d[pos_col].to_numpy()
+    null = []
+    for _ in range(n_perm):
+        lab = base.copy()
+        for ix in idx_by:
+            lab[ix] = rng.permutation(base[ix])
+        null.append(stat(lab))
+    null = np.array(null)
+    return {"observed": obs, "null_mean": float(null.mean()), "p_value": float((null >= obs).mean())}

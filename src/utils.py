@@ -19,7 +19,7 @@ PROCESSED = ROOT / "data" / "processed"
 FIGURES = ROOT / "reports" / "figures"
 
 # ---------- scope (PROVISIONAL: confirm after the college coverage check) ----------
-CLASS_MIN, CLASS_MAX = 2010, 2022   # draft classes in the analysis window
+CLASS_MIN, CLASS_MAX = 2010, 2022   # classes loaded; analysis windows are set in outcome.py
 LAST_COMPLETE_SEASON = 2025         # most recent finished NFL season
 
 # ---------- pick tiers (single picks are too noisy to compare positions) ----------
@@ -41,7 +41,8 @@ def pick_tier(pick: pd.Series) -> pd.Series:
 # Members B and E should look at weights and sack production to sanity-check it.
 POSITION_MAP = {
     "QB": "QB",
-    "RB": "RB", "HB": "RB", "FB": "RB",
+    "RB": "RB", "HB": "RB",
+    "FB": None,   # fullbacks: AV scores them ~0 and they are not a draft-value decision
     "WR": "WR",
     "TE": "TE",
     "T": "OT", "OT": "OT",
